@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Ball</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: yellowgreen;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+        }
+        canvas {
+            border: solid;
+            border-radius: 30px;
+            background-color: lightgreen;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 406px;
+            height: 607px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: solid;
+            background-color: rgb(156, 155, 155);
+            border-radius: 30px;
+      
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        input {
+            margin: 10px;
+            padding: 5px;
+            font-size: 16px;
+        }
+        #highScores {
+            margin-top: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .record-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .record-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="menuScreen" class="screen">
+            <h1>Flappy Ball</h1>
+            <button id="startButton">Start Game</button>
+            <button id="recordsButton">View Records</button>
+        </div>
+        <div id="nameScreen" class="screen" style="display: none;">
+            <h2>Enter Your Name</h2>
+            <input type="text" id="playerName" placeholder="Your Name">
+            <button id="startGameButton">Start Game</button>
+        </div>
+        <div id="gameOverScreen" class="screen" style="display: none;">
+            <h2>Game Over</h2>
+            <p id="finalScore"></p>
+            <button id="playAgainButton">Play Again</button>
+            <button id="backToMenuButton">Back to Menu</button>
+        </div>
+        <div id="recordsScreen" class="screen" style="display: none;">
+            <h2>High Scores</h2>
+            <div id="highScores"></div>
+            <button id="deleteAllRecordsButton">Delete All Records</button>
+            <button id="deleteSelectedRecordsButton">Delete Selected Records</button>
+            <button id="backFromRecordsButton">Back to Menu</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const menuScreen = document.getElementById("menuScreen");
+        const nameScreen = document.getElementById("nameScreen");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+        const recordsScreen = document.getElementById("recordsScreen");
+        const playerNameInput = document.getElementById("playerName");
+        const finalScoreElement = document.getElementById("finalScore");
+        const highScoresDiv = document.getElementById("highScores");
+
+        let currentScreen = "menu";
+        let playerName = "";
+        let highScores = [];
+
+        // Game variables
+        const bird = {
+            x: 50,
+            y: 300,
+            velocity: 10,
+            gravity: 0.5,
+            jump: -10,
+            radius: 20,
+        };
+
+        let pipes = [];
+        let score = 0;
+        let gameOver = false;
+        let frames = 0;
+
+        // Event listeners for buttons
+        document.getElementById("startButton").addEventListener("click", showNameScreen);
+        document.getElementById("recordsButton").addEventListener("click", showRecordsScreen);
+        document.getElementById("startGameButton").addEventListener("click", startGame);
+        document.getElementById("playAgainButton").addEventListener("click", showNameScreen);
+        document.getElementById("backToMenuButton").addEventListener("click", showMenuScreen);
+        document.getElementById("backFromRecordsButton").addEventListener("click", showMenuScreen);
+        document.getElementById("deleteAllRecordsButton").addEventListener("click", deleteAllRecords);
+        document.getElementById("deleteSelectedRecordsButton").addEventListener("click", deleteSelectedRecords);
+
+        // Event listener for key press
+        document.addEventListener("keydown", (e) => {
+            if (currentScreen === "game") {
+                if (e.code === "Space" || e.code === "ArrowUp") {
+                    bird.velocity = bird.jump;
+                }
+            } else if (currentScreen === "name" && e.key === "Enter") {
+                startGame();
+            }
+        });
+
+        function showMenuScreen() {
+            currentScreen = "menu";
+            menuScreen.style.display = "flex";
+            nameScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            recordsScreen.style.display = "none";
+        }
+
+        function showNameScreen() {
+            currentScreen = "name";
+            menuScreen.style.display = "none";
+            nameScreen.style.display = "flex";
+            gameOverScreen.style.display = "none";
+            recordsScreen.style.display = "none";
+            playerNameInput.focus();
+        }
+
+        function showRecordsScreen() {
+            currentScreen = "records";
+            menuScreen.style.display = "none";
+            nameScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            recordsScreen.style.display = "flex";
+            displayHighScores();
+        }
+
+        function startGame() {
+            playerName = playerNameInput.value.trim() || "Anonymous";
+            currentScreen = "game";
+            menuScreen.style.display = "none";
+            nameScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            recordsScreen.style.display = "none";
+            resetGame();
+            gameLoop();
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            if (!gameOver && currentScreen === "game") {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Update game state
+        function update() {
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (bird.y + bird.radius > canvas.height) {
+                endGame();
+            }
+
+            if (frames % 100 === 0) {
+                createPipe();
+            }
+
+            pipes.forEach((pipe, index) => {
+                pipe.x -= 2;
+
+                if (pipe.x + pipe.width < 0) {
+                    pipes.splice(index, 1);
+                    score++;
+                }
+
+                if (
+                    bird.x + bird.radius > pipe.x &&
+                    bird.x - bird.radius < pipe.x + pipe.width &&
+                    (bird.y - bird.radius < pipe.top || bird.y + bird.radius > pipe.bottom)
+                ) {
+                    endGame();
+                }
+            });
+
+            frames++;
+        }
+
+        // Draw game elements
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw bird 
+            ctx.fillStyle = "yellow";
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw pipes
+            ctx.fillStyle = "green";
+            pipes.forEach((pipe) => {
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+                ctx.fillRect(pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom);
+            });
+
+            // Draw score
+            ctx.fillStyle = "black";
+            ctx.font = "24px Arial";
+            ctx.fillText(`Score: ${score}`, 10, 30);
+        }
+
+        // Create a new pipe
+        function createPipe() {
+            const gap = 200;
+            const minHeight = 50;
+            const maxHeight = canvas.height - gap - minHeight;
+            const height = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+
+            pipes.push({
+                x: canvas.width,
+                top: height,
+                bottom: height + gap,
+                width: 50,
+            });
+        }
+
+        // Reset game state
+        function resetGame() {
+            bird.y = 300;
+            bird.velocity = 0;
+            pipes = [];
+            score = 0;
+            gameOver = false;
+            frames = 0;
+        }
+
+        // End the game and record the score
+        function endGame() {
+            gameOver = true;
+            recordScore(playerName, score);
+            finalScoreElement.textContent = `Your score: ${score}`;
+            currentScreen = "gameOver";
+            gameOverScreen.style.display = "flex";
+        }
+
+        // Record the score
+        function recordScore(name, score) {
+            highScores.push({ name, score });
+            highScores.sort((a, b) => b.score - a.score);
+            highScores = highScores.slice(0, 5); // Keep only top 5 scores
+            localStorage.setItem("flappyBallHighScores", JSON.stringify(highScores));
+        }
+
+        // Display high scores
+        function displayHighScores() {
+            highScoresDiv.innerHTML = "";
+            highScores.forEach((entry, index) => {
+                const recordItem = document.createElement("div");
+                recordItem.className = "record-item";
+                
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.value = index;
+                
+                const label = document.createElement("label");
+                label.textContent = `${index + 1}. ${entry.name}: ${entry.score}`;
+                
+                recordItem.appendChild(checkbox);
+                recordItem.appendChild(label);
+                highScoresDiv.appendChild(recordItem);
+            });
+        }
+
+        // Load high scores from local storage
+        function loadHighScores() {
+            const storedScores = localStorage.getItem("flappyBallHighScores");
+            if (storedScores) {
+                highScores = JSON.parse(storedScores);
+            }
+        }
+
+        // Delete all records
+        function deleteAllRecords() {
+            if (confirm("Are you sure you want to delete all records?")) {
+                highScores = [];
+                localStorage.removeItem("flappyBallHighScores");
+                displayHighScores();
+            }
+        }
+
+        // Delete selected records
+        function deleteSelectedRecords() {
+            const checkboxes = highScoresDiv.querySelectorAll('input[type="checkbox"]:checked');
+            const indicesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value)).sort((a, b) => b - a);
+            
+            if (indicesToDelete.length > 0) {
+                if (confirm(`Are you sure you want to delete ${indicesToDelete.length} selected record(s)?`)) {
+                    for (const index of indicesToDelete) {
+                        highScores.splice(index, 1);
+                    }
+                    localStorage.setItem("flappyBallHighScores", JSON.stringify(highScores));
+                    displayHighScores();
+                }
+            } else {
+                alert("No records selected for deletion.");
+            }
+        }
+
+        loadHighScores();
+        showMenuScreen();
+    </script>
+</body>
+</html>
