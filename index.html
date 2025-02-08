@@ -145,6 +145,14 @@
             }
         });
 
+        // Event listener for touch
+        canvas.addEventListener("touchstart", (e) => {
+            if (currentScreen === "game") {
+                e.preventDefault(); // Prevent default touch behavior
+                bird.velocity = bird.jump;
+            }
+        });
+
         function showMenuScreen() {
             currentScreen = "menu";
             menuScreen.style.display = "flex";
